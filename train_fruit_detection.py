@@ -55,6 +55,9 @@ def train(args):
     """
     from ultralytics import YOLO
 
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
     print("=" * 60)
     print("  TRAINING: Real-Time Fruit Detection (YOLOv8s)")
     print("=" * 60)
