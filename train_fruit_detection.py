@@ -77,6 +77,16 @@ def train(args):
         print(f"Checkpoint ditemukan di {last_pt}. Me-resume training...")
         model = YOLO(str(last_pt))
         resume_mode = True
+        
+        # Daftarkan callback untuk meng-override epochs target pada saat resume
+        # karena YOLOv8 secara default mengabaikan parameter 'epochs' baru saat resume=True
+        def override_resume_epochs(trainer):
+            if hasattr(trainer, 'args'):
+                trainer.epochs = args.epochs
+                trainer.args.epochs = args.epochs
+                print(f"Resume epochs target overridden to {args.epochs}")
+
+        model.add_callback("on_pretrain_routine_start", override_resume_epochs)
     else:
         print(f"Tidak ada checkpoint. Memulai training baru menggunakan {PRETRAINED_MODEL}...")
         model = YOLO(str(PRETRAINED_MODEL))
@@ -94,9 +104,10 @@ def train(args):
                 trainer.stop = True
 
                 # Monkeypatch final_eval to preserve the optimizer state in last.pt
-                if not getattr(trainer, "_final_eval_monkeypatched", False):
+                if not hasattr(trainer, '_final_eval_monkeypatched'):
+                    trainer._final_eval_monkeypatched = True
                     original_final_eval = trainer.final_eval
-                    def custom_final_eval():
+                    def custom_final_eval(*eval_args, **eval_kwargs):
                         import shutil
                         last_pt = Path(trainer.last)
                         backup_pt = last_pt.with_suffix('.pt.bak')
@@ -105,14 +116,13 @@ def train(args):
                             print(f"Mengamankan checkpoint dengan optimizer state ke {backup_pt}")
                         
                         try:
-                            original_final_eval()
+                            original_final_eval(*eval_args, **eval_kwargs)
                         finally:
                             if backup_pt.exists():
                                 shutil.move(str(backup_pt), str(last_pt))
                                 print(f"Mengembalikan checkpoint dengan optimizer state ke {last_pt}")
                     
                     trainer.final_eval = custom_final_eval
-                    trainer._final_eval_monkeypatched = True
 
         model.add_callback("on_fit_epoch_end", stop_at_epoch_limit)
 
@@ -379,7 +389,17 @@ Contoh penggunaan:
                 
                 # Hitung target epoch run berikutnya
                 next_target = min(completed_epochs + epochs_per_run, total_epochs)
-                print(f"Memulai chunk baru: Epoch {completed_epochs + 1} s/d {next_target}")
+                log_msg = f"Progress: {completed_epochs}/{total_epochs} epochs. Memulai chunk baru: Epoch {completed_epochs + 1} s/d {next_target}"
+                print(log_msg)
+                
+                # Catat progress ke log file
+                log_file = PROJECT_DIR / DEFAULT_PROJECT_NAME / "incremental_training.log"
+                log_file.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    with open(log_file, "a") as f:
+                        f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {log_msg}\n")
+                except Exception as e:
+                    print(f"Gagal menulis ke log file: {e}")
                 
                 # Jalankan subprocess script ini sendiri dengan flag --is-chunk
                 cmd = [
