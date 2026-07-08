@@ -1,6 +1,6 @@
 """
 =============================================================================
-  🍎 Real-Time Fruit Detection - Webcam / Video
+  Real-Time Fruit Detection - Webcam / Video
   Model   : YOLOv8s (fine-tuned on Fruits dataset)
   Classes : Apple, Banana, Grape, Orange, Pineapple, Watermelon
 =============================================================================
@@ -44,16 +44,6 @@ CLASS_COLORS = {
     "Orange":     (40, 140, 255),    # Orange
     "Pineapple":  (50, 200, 50),     # Hijau
     "Watermelon": (60, 180, 75),     # Hijau tua
-}
-
-# Emoji untuk tampilan info
-CLASS_EMOJI = {
-    "Apple":      "🍎",
-    "Banana":     "🍌",
-    "Grape":      "🍇",
-    "Orange":     "🍊",
-    "Pineapple":  "🍍",
-    "Watermelon": "🍉",
 }
 
 
@@ -206,14 +196,14 @@ def run_detection(args):
         weights_path = str(PROJECT_DIR / "fruit_detection_runs" / "train" / "weights" / "best.pt")
 
     if not os.path.exists(weights_path):
-        print(f"❌ Model tidak ditemukan: {weights_path}")
+        print(f"Model tidak ditemukan: {weights_path}")
         print("   Opsi:")
         print("   1. Jalankan training dulu: python train_fruit_detection.py --mode train")
         print("   2. Tentukan path model: --weights path/to/best.pt")
         print(f"   3. Gunakan pretrained: --weights {PRETRAINED_MODEL}")
         sys.exit(1)
 
-    print(f"📦 Loading model: {weights_path}")
+    print(f"Loading model: {weights_path}")
     model = YOLO(weights_path)
 
     # ── Open Video Source ───────────────────────────────────────
@@ -223,18 +213,18 @@ def run_detection(args):
     if source is None or source == "0":
         source = 0
         is_webcam = True
-        print("📷 Membuka webcam...")
+        print("Membuka webcam...")
     elif source.isdigit():
         source = int(source)
         is_webcam = True
-        print(f"📷 Membuka kamera {source}...")
+        print(f"Membuka kamera {source}...")
     else:
-        print(f"🎬 Membuka video: {source}")
+        print(f"Membuka video: {source}")
 
     cap = cv2.VideoCapture(source)
 
     if not cap.isOpened():
-        print("❌ Gagal membuka video source!")
+        print("Gagal membuka video source!")
         if is_webcam:
             print("   Pastikan webcam terhubung dan tidak dipakai aplikasi lain.")
         sys.exit(1)
@@ -254,11 +244,11 @@ def run_detection(args):
         output_path = str(PROJECT_DIR / "output_detection.mp4")
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         out_writer = cv2.VideoWriter(output_path, fourcc, 30, (actual_w, actual_h))
-        print(f"💾 Menyimpan hasil ke: {output_path}")
+        print(f"Menyimpan hasil ke: {output_path}")
 
     # ── Main Detection Loop ─────────────────────────────────────
     print("\n" + "=" * 50)
-    print("  🍎 REAL-TIME FRUIT DETECTION AKTIF")
+    print("  REAL-TIME FRUIT DETECTION AKTIF")
     print("  Tekan 'Q' untuk keluar")
     print("  Tekan 'S' untuk screenshot")
     print("  Tekan 'P' untuk pause/resume")
@@ -279,10 +269,10 @@ def run_detection(args):
             ret, frame = cap.read()
             if not ret:
                 if is_webcam:
-                    print("⚠️ Gagal baca frame dari webcam")
+                    print("Gagal baca frame dari webcam")
                     break
                 else:
-                    print("✅ Video selesai diputar")
+                    print("Video selesai diputar")
                     break
 
             frame_count += 1
@@ -341,15 +331,15 @@ def run_detection(args):
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("q") or key == ord("Q"):
-            print("\n👋 Keluar dari deteksi...")
+            print("\nKeluar dari deteksi...")
             break
         elif key == ord("s") or key == ord("S"):
             screenshot_path = str(PROJECT_DIR / f"screenshot_{frame_count}.jpg")
             cv2.imwrite(screenshot_path, frame)
-            print(f"📸 Screenshot disimpan: {screenshot_path}")
+            print(f"Screenshot disimpan: {screenshot_path}")
         elif key == ord("p") or key == ord("P"):
             paused = not paused
-            status = "⏸️  PAUSED" if paused else "▶️  RESUMED"
+            status = "PAUSED" if paused else "RESUMED"
             print(status)
 
     # ── Cleanup ─────────────────────────────────────────────────
@@ -358,7 +348,7 @@ def run_detection(args):
         out_writer.release()
     cv2.destroyAllWindows()
 
-    print(f"\n📊 Total frames diproses: {frame_count}")
+    print(f"\nTotal frames diproses: {frame_count}")
     print(f"   Rata-rata FPS: {fps:.1f}")
 
 
@@ -372,7 +362,7 @@ PRETRAINED_MODEL = PROJECT_DIR / "yolov8s.pt"
 
 def main():
     parser = argparse.ArgumentParser(
-        description="🍎 Real-Time Fruit Detection menggunakan Webcam/Video (YOLOv8)",
+        description="Real-Time Fruit Detection menggunakan Webcam/Video (YOLOv8)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Contoh penggunaan:
