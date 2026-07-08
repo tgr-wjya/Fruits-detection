@@ -43,9 +43,9 @@ DEFAULT_EPOCHS = 50
 DEFAULT_BATCH_SIZE = 16
 DEFAULT_IMG_SIZE = 640
 DEFAULT_DEVICE = "0" if torch.cuda.is_available() else "cpu"
-DEFAULT_WORKERS = 4
+DEFAULT_WORKERS = 2        # Lower default workers to save RAM
 DEFAULT_PROJECT_NAME = "fruit_detection_runs"
-DEFAULT_CACHE = True       # Cache images in RAM for fast execution
+DEFAULT_CACHE = False      # Do NOT cache images in RAM by default to avoid system freeze
 
 
 def train(args):
@@ -56,7 +56,7 @@ def train(args):
     from ultralytics import YOLO
 
     print("=" * 60)
-    print("  🍎 TRAINING: Real-Time Fruit Detection (YOLOv8s)")
+    print("  TRAINING: Real-Time Fruit Detection (YOLOv8s)")
     print("=" * 60)
     print(f"  Dataset     : {DATA_YAML}")
     print(f"  Pretrained  : {PRETRAINED_MODEL}")
@@ -109,7 +109,7 @@ def train(args):
 
     best_model_path = PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt"
     print("\n" + "=" * 60)
-    print("  ✅ TRAINING SELESAI!")
+    print("  TRAINING SELESAI!")
     print(f"  Best model  : {best_model_path}")
     print("=" * 60)
 
@@ -129,12 +129,12 @@ def evaluate(args):
         best_model = str(PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt")
 
     if not os.path.exists(best_model):
-        print(f"❌ Model tidak ditemukan: {best_model}")
+        print(f"Model tidak ditemukan: {best_model}")
         print("   Jalankan training terlebih dahulu!")
         sys.exit(1)
 
     print("=" * 60)
-    print("  📊 EVALUASI: Fruit Detection Model")
+    print("  EVALUASI: Fruit Detection Model")
     print("=" * 60)
     print(f"  Model   : {best_model}")
     print(f"  Dataset : {DATA_YAML}")
@@ -143,7 +143,7 @@ def evaluate(args):
     model = YOLO(best_model)
 
     # Evaluasi pada data validation
-    print("\n📋 Evaluasi pada Validation Set:")
+    print("\nEvaluasi pada Validation Set:")
     val_results = model.val(
         data=str(DATA_YAML),
         split="val",
@@ -157,7 +157,7 @@ def evaluate(args):
     )
 
     # Evaluasi pada data test
-    print("\n📋 Evaluasi pada Test Set:")
+    print("\nEvaluasi pada Test Set:")
     test_results = model.val(
         data=str(DATA_YAML),
         split="test",
@@ -171,7 +171,7 @@ def evaluate(args):
     )
 
     print("\n" + "=" * 60)
-    print("  ✅ EVALUASI SELESAI!")
+    print("  EVALUASI SELESAI!")
     print(f"  Val  mAP50    : {val_results.box.map50:.4f}")
     print(f"  Val  mAP50-95 : {val_results.box.map:.4f}")
     print(f"  Test mAP50    : {test_results.box.map50:.4f}")
@@ -190,15 +190,15 @@ def predict(args):
         best_model = str(PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt")
 
     if not os.path.exists(best_model):
-        print(f"❌ Model tidak ditemukan: {best_model}")
+        print(f"Model tidak ditemukan: {best_model}")
         sys.exit(1)
 
     if args.source is None:
-        print("❌ Tentukan --source (path ke gambar atau folder)")
+        print("Tentukan --source (path ke gambar atau folder)")
         sys.exit(1)
 
     print("=" * 60)
-    print("  🔍 PREDIKSI: Fruit Detection")
+    print("  PREDIKSI: Fruit Detection")
     print("=" * 60)
 
     model = YOLO(best_model)
@@ -214,7 +214,7 @@ def predict(args):
         exist_ok=True,
     )
 
-    print(f"\n✅ Prediksi selesai! Hasil disimpan di folder {DEFAULT_PROJECT_NAME}/predict/")
+    print(f"\nPrediksi selesai! Hasil disimpan di folder {DEFAULT_PROJECT_NAME}/predict/")
 
 
 def export_model(args):
@@ -228,17 +228,17 @@ def export_model(args):
         best_model = str(PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt")
 
     if not os.path.exists(best_model):
-        print(f"❌ Model tidak ditemukan: {best_model}")
+        print(f"Model tidak ditemukan: {best_model}")
         sys.exit(1)
 
     print("=" * 60)
-    print("  📦 EXPORT MODEL ke ONNX")
+    print("  EXPORT MODEL ke ONNX")
     print("=" * 60)
 
     model = YOLO(best_model)
     model.export(format="onnx", imgsz=args.imgsz, dynamic=True)
 
-    print("\n✅ Model berhasil di-export ke format ONNX!")
+    print("\nModel berhasil di-export ke format ONNX!")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -247,7 +247,7 @@ def export_model(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="🍎 Real-Time Fruit Detection - Training & Evaluation (YOLOv8)",
+        description="Real-Time Fruit Detection - Training & Evaluation (YOLOv8)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Contoh penggunaan:
@@ -278,7 +278,13 @@ Contoh penggunaan:
     parser.add_argument("--conf", type=float, default=0.5,
                         help="Confidence threshold untuk prediksi (default: 0.5)")
     parser.add_argument("--cache", type=str, default=str(DEFAULT_CACHE),
-                        help="Cache mode: True/ram, disk, atau False (default: True)")
+                        help=f"Cache mode: True/ram, disk, atau False (default: {DEFAULT_CACHE})")
+    parser.add_argument("--epochs-per-run", type=int, default=None,
+                        help="Jumlah epoch per chunk running sebelum cooldown (default: None, jalankan sekaligus)")
+    parser.add_argument("--cooldown", type=int, default=30,
+                        help="Durasi jeda pendinginan (detik) antar run/chunk (default: 30)")
+    parser.add_argument("--is-chunk", action="store_true",
+                        help="Internal flag: Menandakan proses dijalankan sebagai sub-proses chunk")
 
     args = parser.parse_args()
 
