@@ -94,22 +94,25 @@ def train(args):
                 trainer.stop = True
 
                 # Monkeypatch final_eval to preserve the optimizer state in last.pt
-                original_final_eval = trainer.final_eval
-                def custom_final_eval():
-                    import shutil
-                    last_pt = Path(trainer.last)
-                    backup_pt = last_pt.with_suffix('.pt.bak')
-                    if last_pt.exists():
-                        shutil.copy(str(last_pt), str(backup_pt))
-                        print(f"Mengamankan checkpoint dengan optimizer state ke {backup_pt}")
+                if not getattr(trainer, "_final_eval_monkeypatched", False):
+                    original_final_eval = trainer.final_eval
+                    def custom_final_eval():
+                        import shutil
+                        last_pt = Path(trainer.last)
+                        backup_pt = last_pt.with_suffix('.pt.bak')
+                        if last_pt.exists():
+                            shutil.copy(str(last_pt), str(backup_pt))
+                            print(f"Mengamankan checkpoint dengan optimizer state ke {backup_pt}")
+                        
+                        try:
+                            original_final_eval()
+                        finally:
+                            if backup_pt.exists():
+                                shutil.move(str(backup_pt), str(last_pt))
+                                print(f"Mengembalikan checkpoint dengan optimizer state ke {last_pt}")
                     
-                    original_final_eval()
-                    
-                    if backup_pt.exists():
-                        shutil.move(str(backup_pt), str(last_pt))
-                        print(f"Mengembalikan checkpoint dengan optimizer state ke {last_pt}")
-                
-                trainer.final_eval = custom_final_eval
+                    trainer.final_eval = custom_final_eval
+                    trainer._final_eval_monkeypatched = True
 
         model.add_callback("on_fit_epoch_end", stop_at_epoch_limit)
 

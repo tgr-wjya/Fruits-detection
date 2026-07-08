@@ -14,6 +14,8 @@
 3. **Checkpoint Optimizer State Preservation**:
    - Solved the Ultralytics default behavior of stripping the optimizer state from the model checkpoint when a training loop exits (which prevents proper resuming in subsequent chunks).
    - Monkeypatched `trainer.final_eval` in the callback to back up `last.pt` to `last.pt.bak` before it gets stripped, and then restore it after `final_eval` completes, ensuring the full optimizer state remains intact.
+   - Added a `try...finally` block around `original_final_eval()` to guarantee that the backup file is always moved back to `last.pt` even if validation or `final_eval` raises an exception.
+   - Implemented a re-entrant guard check `trainer._final_eval_monkeypatched` to prevent double monkeypatching and potential infinite recursion if the callback is invoked multiple times.
 
 ## What Was Tested and Test Results
 
