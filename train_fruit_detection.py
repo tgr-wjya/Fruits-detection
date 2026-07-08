@@ -51,7 +51,7 @@ DEFAULT_CACHE = False      # Do NOT cache images in RAM by default to avoid syst
 def train(args):
     """
     Fine-tune YOLOv8s pada dataset Fruits-detection.
-    Hasil training (weights, metrics, grafik) disimpan di folder runs/.
+    Mendukung auto-resume dan graceful training termination per chunk.
     """
     from ultralytics import YOLO
 
@@ -60,14 +60,58 @@ def train(args):
     print("=" * 60)
     print(f"  Dataset     : {DATA_YAML}")
     print(f"  Pretrained  : {PRETRAINED_MODEL}")
-    print(f"  Epochs      : {args.epochs}")
+    print(f"  Total Epochs: {args.epochs}")
+    if args.epochs_per_run:
+        print(f"  Chunk Size  : {args.epochs_per_run} epochs per run")
+        print(f"  Cooldown    : {args.cooldown} seconds")
     print(f"  Batch Size  : {args.batch}")
     print(f"  Image Size  : {args.imgsz}")
     print(f"  Device      : {args.device}")
+    print(f"  Workers     : {args.workers}")
+    print(f"  Cache       : {args.cache}")
     print("=" * 60)
 
-    # Load pretrained YOLOv8s
-    model = YOLO(str(PRETRAINED_MODEL))
+    # Cek apakah checkpoint sebelumnya ada untuk di-resume
+    last_pt = PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "last.pt"
+    if last_pt.exists():
+        print(f"Checkpoint ditemukan di {last_pt}. Me-resume training...")
+        model = YOLO(str(last_pt))
+        resume_mode = True
+    else:
+        print(f"Tidak ada checkpoint. Memulai training baru menggunakan {PRETRAINED_MODEL}...")
+        model = YOLO(str(PRETRAINED_MODEL))
+        resume_mode = False
+
+    # Jika diset epochs-per-run, daftarkan callback untuk stop training di akhir limit chunk
+    if args.epochs_per_run is not None and args.epochs_per_run > 0:
+        session_epochs_completed = 0
+        def stop_at_epoch_limit(trainer):
+            nonlocal session_epochs_completed
+            session_epochs_completed += 1
+            if session_epochs_completed >= args.epochs_per_run:
+                print(f"\nLimit epoch per run ({args.epochs_per_run}) tercapai untuk chunk ini.")
+                print("Menyimpan checkpoint dan menghentikan training secara graceful...")
+                trainer.stop = True
+
+                # Monkeypatch final_eval to preserve the optimizer state in last.pt
+                original_final_eval = trainer.final_eval
+                def custom_final_eval():
+                    import shutil
+                    last_pt = Path(trainer.last)
+                    backup_pt = last_pt.with_suffix('.pt.bak')
+                    if last_pt.exists():
+                        shutil.copy(str(last_pt), str(backup_pt))
+                        print(f"Mengamankan checkpoint dengan optimizer state ke {backup_pt}")
+                    
+                    original_final_eval()
+                    
+                    if backup_pt.exists():
+                        shutil.move(str(backup_pt), str(last_pt))
+                        print(f"Mengembalikan checkpoint dengan optimizer state ke {last_pt}")
+                
+                trainer.final_eval = custom_final_eval
+
+        model.add_callback("on_fit_epoch_end", stop_at_epoch_limit)
 
     # Jalankan training
     results = model.train(
@@ -81,21 +125,22 @@ def train(args):
         project=str(PROJECT_DIR / DEFAULT_PROJECT_NAME),
         name="train",
         exist_ok=True,
+        resume=resume_mode,
         # Augmentasi data
-        hsv_h=0.015,       # Hue augmentation
-        hsv_s=0.7,         # Saturation augmentation
-        hsv_v=0.4,         # Value augmentation
-        degrees=10.0,      # Rotation augmentation
-        translate=0.1,     # Translation augmentation
-        scale=0.5,         # Scale augmentation
-        fliplr=0.5,        # Horizontal flip
-        flipud=0.0,        # Vertical flip (disabled)
-        mosaic=1.0,        # Mosaic augmentation
-        mixup=0.1,         # Mixup augmentation
+        hsv_h=0.015,
+        hsv_s=0.7,
+        hsv_v=0.4,
+        degrees=10.0,
+        translate=0.1,
+        scale=0.5,
+        fliplr=0.5,
+        flipud=0.0,
+        mosaic=1.0,
+        mixup=0.1,
         # Optimizer
         optimizer="auto",
-        lr0=0.01,          # Initial learning rate
-        lrf=0.01,          # Final learning rate (fraction of lr0)
+        lr0=0.01,
+        lrf=0.01,
         momentum=0.937,
         weight_decay=0.0005,
         warmup_epochs=3.0,
@@ -109,8 +154,7 @@ def train(args):
 
     best_model_path = PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt"
     print("\n" + "=" * 60)
-    print("  TRAINING SELESAI!")
-    print(f"  Best model  : {best_model_path}")
+    print("  SUBPROSES CHUNK SELESAI!")
     print("=" * 60)
 
     return results
