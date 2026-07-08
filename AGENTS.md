@@ -5,6 +5,9 @@ This repository has no project-specific implementation rules yet.
 Agents should follow the user's global instructions and keep any future project
 rules in this file only when they are safe for other developers to inherit.
 
+## Coding Standards
+- **NO EMOJIS EVER:** Do not write or include emojis in the code changes, print messages, comments, configurations, logs, or documentation within this repository.
+
 ## What Belongs Here
 
 - Build, test, lint, and launch commands for this repository.
