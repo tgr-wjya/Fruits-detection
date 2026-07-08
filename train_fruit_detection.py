@@ -1,0 +1,302 @@
+"""
+=============================================================================
+  Real-Time Fruit Detection - Training & Evaluation Script
+  Model   : YOLOv8s (fine-tuned)
+  Dataset : 6 classes - Apple, Banana, Grape, Orange, Pineapple, Watermelon
+  Author  : Auto-generated
+=============================================================================
+
+CARA PENGGUNAAN:
+  1. Install dependencies:
+       pip install ultralytics opencv-python matplotlib
+
+  2. Jalankan training:
+       python train_fruit_detection.py --mode train
+
+  3. Jalankan evaluasi:
+       python train_fruit_detection.py --mode eval
+
+  4. Jalankan prediksi pada gambar:
+       python train_fruit_detection.py --mode predict --source path/to/image.jpg
+
+  5. Lihat semua opsi:
+       python train_fruit_detection.py --help
+"""
+
+import argparse
+import os
+import sys
+from pathlib import Path
+import torch
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  KONFIGURASI DEFAULT
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Path ke folder project (otomatis detect)
+PROJECT_DIR = Path(__file__).resolve().parent
+DATA_YAML = PROJECT_DIR / "data.yaml"
+PRETRAINED_MODEL = PROJECT_DIR / "yolov8s.pt"
+
+# Hyperparameters training default
+DEFAULT_EPOCHS = 50
+DEFAULT_BATCH_SIZE = 16
+DEFAULT_IMG_SIZE = 640
+DEFAULT_DEVICE = "0" if torch.cuda.is_available() else "cpu"
+DEFAULT_WORKERS = 4
+DEFAULT_PROJECT_NAME = "fruit_detection_runs"
+DEFAULT_CACHE = True       # Cache images in RAM for fast execution
+
+
+def train(args):
+    """
+    Fine-tune YOLOv8s pada dataset Fruits-detection.
+    Hasil training (weights, metrics, grafik) disimpan di folder runs/.
+    """
+    from ultralytics import YOLO
+
+    print("=" * 60)
+    print("  🍎 TRAINING: Real-Time Fruit Detection (YOLOv8s)")
+    print("=" * 60)
+    print(f"  Dataset     : {DATA_YAML}")
+    print(f"  Pretrained  : {PRETRAINED_MODEL}")
+    print(f"  Epochs      : {args.epochs}")
+    print(f"  Batch Size  : {args.batch}")
+    print(f"  Image Size  : {args.imgsz}")
+    print(f"  Device      : {args.device}")
+    print("=" * 60)
+
+    # Load pretrained YOLOv8s
+    model = YOLO(str(PRETRAINED_MODEL))
+
+    # Jalankan training
+    results = model.train(
+        data=str(DATA_YAML),
+        epochs=args.epochs,
+        batch=args.batch,
+        imgsz=args.imgsz,
+        device=args.device,
+        workers=args.workers,
+        cache=args.cache,
+        project=str(PROJECT_DIR / DEFAULT_PROJECT_NAME),
+        name="train",
+        exist_ok=True,
+        # Augmentasi data
+        hsv_h=0.015,       # Hue augmentation
+        hsv_s=0.7,         # Saturation augmentation
+        hsv_v=0.4,         # Value augmentation
+        degrees=10.0,      # Rotation augmentation
+        translate=0.1,     # Translation augmentation
+        scale=0.5,         # Scale augmentation
+        fliplr=0.5,        # Horizontal flip
+        flipud=0.0,        # Vertical flip (disabled)
+        mosaic=1.0,        # Mosaic augmentation
+        mixup=0.1,         # Mixup augmentation
+        # Optimizer
+        optimizer="auto",
+        lr0=0.01,          # Initial learning rate
+        lrf=0.01,          # Final learning rate (fraction of lr0)
+        momentum=0.937,
+        weight_decay=0.0005,
+        warmup_epochs=3.0,
+        warmup_momentum=0.8,
+        # Early stopping
+        patience=15,
+        # Logging
+        verbose=True,
+        plots=True,
+    )
+
+    best_model_path = PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt"
+    print("\n" + "=" * 60)
+    print("  ✅ TRAINING SELESAI!")
+    print(f"  Best model  : {best_model_path}")
+    print("=" * 60)
+
+    return results
+
+
+def evaluate(args):
+    """
+    Evaluasi model pada dataset test.
+    Menampilkan mAP, Precision, Recall per kelas.
+    """
+    from ultralytics import YOLO
+
+    # Cari model terbaik
+    best_model = args.weights
+    if best_model is None:
+        best_model = str(PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt")
+
+    if not os.path.exists(best_model):
+        print(f"❌ Model tidak ditemukan: {best_model}")
+        print("   Jalankan training terlebih dahulu!")
+        sys.exit(1)
+
+    print("=" * 60)
+    print("  📊 EVALUASI: Fruit Detection Model")
+    print("=" * 60)
+    print(f"  Model   : {best_model}")
+    print(f"  Dataset : {DATA_YAML}")
+    print("=" * 60)
+
+    model = YOLO(best_model)
+
+    # Evaluasi pada data validation
+    print("\n📋 Evaluasi pada Validation Set:")
+    val_results = model.val(
+        data=str(DATA_YAML),
+        split="val",
+        imgsz=args.imgsz,
+        batch=args.batch,
+        device=args.device,
+        plots=True,
+        project=str(PROJECT_DIR / DEFAULT_PROJECT_NAME),
+        name="val_eval",
+        exist_ok=True,
+    )
+
+    # Evaluasi pada data test
+    print("\n📋 Evaluasi pada Test Set:")
+    test_results = model.val(
+        data=str(DATA_YAML),
+        split="test",
+        imgsz=args.imgsz,
+        batch=args.batch,
+        device=args.device,
+        plots=True,
+        project=str(PROJECT_DIR / DEFAULT_PROJECT_NAME),
+        name="test_eval",
+        exist_ok=True,
+    )
+
+    print("\n" + "=" * 60)
+    print("  ✅ EVALUASI SELESAI!")
+    print(f"  Val  mAP50    : {val_results.box.map50:.4f}")
+    print(f"  Val  mAP50-95 : {val_results.box.map:.4f}")
+    print(f"  Test mAP50    : {test_results.box.map50:.4f}")
+    print(f"  Test mAP50-95 : {test_results.box.map:.4f}")
+    print("=" * 60)
+
+
+def predict(args):
+    """
+    Prediksi pada gambar atau folder gambar.
+    """
+    from ultralytics import YOLO
+
+    best_model = args.weights
+    if best_model is None:
+        best_model = str(PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt")
+
+    if not os.path.exists(best_model):
+        print(f"❌ Model tidak ditemukan: {best_model}")
+        sys.exit(1)
+
+    if args.source is None:
+        print("❌ Tentukan --source (path ke gambar atau folder)")
+        sys.exit(1)
+
+    print("=" * 60)
+    print("  🔍 PREDIKSI: Fruit Detection")
+    print("=" * 60)
+
+    model = YOLO(best_model)
+
+    results = model.predict(
+        source=args.source,
+        imgsz=args.imgsz,
+        conf=args.conf,
+        device=args.device,
+        save=True,
+        project=str(PROJECT_DIR / DEFAULT_PROJECT_NAME),
+        name="predict",
+        exist_ok=True,
+    )
+
+    print(f"\n✅ Prediksi selesai! Hasil disimpan di folder {DEFAULT_PROJECT_NAME}/predict/")
+
+
+def export_model(args):
+    """
+    Export model ke format ONNX untuk deployment.
+    """
+    from ultralytics import YOLO
+
+    best_model = args.weights
+    if best_model is None:
+        best_model = str(PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt")
+
+    if not os.path.exists(best_model):
+        print(f"❌ Model tidak ditemukan: {best_model}")
+        sys.exit(1)
+
+    print("=" * 60)
+    print("  📦 EXPORT MODEL ke ONNX")
+    print("=" * 60)
+
+    model = YOLO(best_model)
+    model.export(format="onnx", imgsz=args.imgsz, dynamic=True)
+
+    print("\n✅ Model berhasil di-export ke format ONNX!")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  MAIN
+# ─────────────────────────────────────────────────────────────────────────────
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="🍎 Real-Time Fruit Detection - Training & Evaluation (YOLOv8)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Contoh penggunaan:
+  python train_fruit_detection.py --mode train --epochs 100
+  python train_fruit_detection.py --mode eval
+  python train_fruit_detection.py --mode predict --source test/images
+  python train_fruit_detection.py --mode export
+        """
+    )
+
+    parser.add_argument("--mode", type=str, required=True,
+                        choices=["train", "eval", "predict", "export"],
+                        help="Mode: train | eval | predict | export")
+    parser.add_argument("--epochs", type=int, default=DEFAULT_EPOCHS,
+                        help=f"Jumlah epoch training (default: {DEFAULT_EPOCHS})")
+    parser.add_argument("--batch", type=int, default=DEFAULT_BATCH_SIZE,
+                        help=f"Batch size (default: {DEFAULT_BATCH_SIZE})")
+    parser.add_argument("--imgsz", type=int, default=DEFAULT_IMG_SIZE,
+                        help=f"Image size (default: {DEFAULT_IMG_SIZE})")
+    parser.add_argument("--device", type=str, default=DEFAULT_DEVICE,
+                        help=f"Device: 0,1,2.. untuk GPU atau cpu (default: {DEFAULT_DEVICE})")
+    parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS,
+                        help=f"Data loader workers (default: {DEFAULT_WORKERS})")
+    parser.add_argument("--weights", type=str, default=None,
+                        help="Path ke model weights (default: auto detect dari training)")
+    parser.add_argument("--source", type=str, default=None,
+                        help="Source gambar/video untuk prediksi")
+    parser.add_argument("--conf", type=float, default=0.5,
+                        help="Confidence threshold untuk prediksi (default: 0.5)")
+    parser.add_argument("--cache", type=str, default=str(DEFAULT_CACHE),
+                        help="Cache mode: True/ram, disk, atau False (default: True)")
+
+    args = parser.parse_args()
+
+    # Convert string boolean to python boolean/type for Ultralytics
+    if args.cache.lower() == 'true':
+        args.cache = True
+    elif args.cache.lower() == 'false':
+        args.cache = False
+
+    if args.mode == "train":
+        train(args)
+    elif args.mode == "eval":
+        evaluate(args)
+    elif args.mode == "predict":
+        predict(args)
+    elif args.mode == "export":
+        export_model(args)
+
+
+if __name__ == "__main__":
+    main()

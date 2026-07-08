@@ -1,0 +1,23 @@
+# Dataset directories
+/train/
+/valid/
+/test/
+/train_full_backup/
+
+# Training outputs and model checkpoints
+/fruit_detection_runs/
+*.pt
+
+# Python / Jupyter caches
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local/Agent configurations
+CLAUDE.local.md
+/.superpowers/
