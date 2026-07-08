@@ -342,7 +342,94 @@ Contoh penggunaan:
         args.cache = False
 
     if args.mode == "train":
-        train(args)
+        # Jika user meminta chunk training dan ini adalah proses utama (bukan subprocess chunk)
+        if args.epochs_per_run is not None and args.epochs_per_run > 0 and not args.is_chunk:
+            import subprocess
+            import time
+            
+            total_epochs = args.epochs
+            epochs_per_run = args.epochs_per_run
+            cooldown = args.cooldown
+            last_pt = PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "last.pt"
+            
+            print("=" * 60)
+            print("  AUTO-CHUNK RUNNER DI-AKTIFKAN")
+            print("=" * 60)
+            print(f"  Target Epochs  : {total_epochs}")
+            print(f"  Epochs Per Run : {epochs_per_run}")
+            print(f"  Cooldown Pause : {cooldown} seconds")
+            print("=" * 60)
+            
+            while True:
+                # Cek progress epoch saat ini dari checkpoint last.pt
+                completed_epochs = 0
+                if last_pt.exists():
+                    try:
+                        ckpt = torch.load(str(last_pt), map_location="cpu", weights_only=False)
+                        if ckpt and "train_results" in ckpt and "epoch" in ckpt["train_results"]:
+                            completed_epochs = len(ckpt["train_results"]["epoch"])
+                    except Exception as e:
+                        print(f"Gagal membaca checkpoint progress: {e}. Melanjutkan run...")
+                
+                print(f"\nProgress Training: {completed_epochs}/{total_epochs} epoch selesai.")
+                
+                if completed_epochs >= total_epochs:
+                    print("Semua epoch telah berhasil diselesaikan!")
+                    break
+                
+                # Hitung target epoch run berikutnya
+                next_target = min(completed_epochs + epochs_per_run, total_epochs)
+                print(f"Memulai chunk baru: Epoch {completed_epochs + 1} s/d {next_target}")
+                
+                # Jalankan subprocess script ini sendiri dengan flag --is-chunk
+                cmd = [
+                    sys.executable,
+                    str(Path(__file__).resolve()),
+                    "--mode", "train",
+                    "--epochs", str(total_epochs),
+                    "--epochs-per-run", str(epochs_per_run),
+                    "--cooldown", str(cooldown),
+                    "--is-chunk",
+                    "--batch", str(args.batch),
+                    "--imgsz", str(args.imgsz),
+                    "--device", str(args.device),
+                    "--workers", str(args.workers),
+                    "--cache", str(args.cache),
+                ]
+                
+                result = subprocess.run(cmd)
+                if result.returncode != 0:
+                    print(f"Subproses training terhenti dengan exit code {result.returncode}. Membatalkan loop.")
+                    sys.exit(result.returncode)
+                
+                # Check progress baru
+                new_completed = 0
+                if last_pt.exists():
+                    try:
+                        ckpt = torch.load(str(last_pt), map_location="cpu", weights_only=False)
+                        if ckpt and "train_results" in ckpt and "epoch" in ckpt["train_results"]:
+                            new_completed = len(ckpt["train_results"]["epoch"])
+                    except Exception:
+                        pass
+                
+                # Jika progress tidak bertambah sama sekali, cegah infinite loop
+                if new_completed <= completed_epochs:
+                    print("Peringatan: Tidak ada kemajuan epoch terdeteksi pada run ini. Menghentikan untuk mencegah loop tanpa akhir.")
+                    break
+                
+                if new_completed >= total_epochs:
+                    print("\nSemua epoch telah berhasil diselesaikan!")
+                    break
+                    
+                print(f"\nMemasuki masa pendinginan hardware selama {cooldown} detik...")
+                time.sleep(cooldown)
+                
+            print("=" * 60)
+            print("  AUTO-CHUNK RUNNER SELESAI")
+            print("=" * 60)
+        else:
+            # Jalankan standard training (atau subproses chunk)
+            train(args)
     elif args.mode == "eval":
         evaluate(args)
     elif args.mode == "predict":
