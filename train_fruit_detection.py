@@ -358,6 +358,24 @@ Contoh penggunaan:
     elif args.cache.lower() == 'false':
         args.cache = False
 
+    # Jika batch size adalah default (16), sesuaikan secara dinamis untuk model YOLO26s/YOLO11
+    # karena model tersebut lebih berat dan AMP dinonaktifkan di GPU dengan VRAM terbatas (misal GTX 1650)
+    if args.batch == 16:
+        model_stem = Path(args.model).stem.lower()
+        if "yolo26" in model_stem or "yolo11" in model_stem:
+            if torch.cuda.is_available() and args.device != "cpu":
+                try:
+                    # Ambil ID device yang akan digunakan
+                    device_id = int(args.device.split(',')[0]) if ',' in args.device else int(args.device) if args.device.isdigit() else 0
+                    vram_gb = torch.cuda.get_device_properties(device_id).total_memory / (1024 ** 3)
+                    if vram_gb < 5.0:
+                        args.batch = 8
+                        print(f"Deteksi GPU dengan VRAM terbatas ({vram_gb:.1f} GB) dan model {args.model}.")
+                        print(f"Menurunkan default batch size secara otomatis ke {args.batch} untuk kestabilan training.")
+                except Exception:
+                    args.batch = 8
+                    print(f"Menurunkan default batch size secara otomatis ke {args.batch} untuk model {args.model}.")
+
     # Tentukan project name secara dinamis berdasarkan model
     model_stem = Path(args.model).stem
     if model_stem.startswith("yolov8"):
