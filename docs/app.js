@@ -64,22 +64,56 @@ pauseBtn.addEventListener("click", () => {
     }
 });
 
-// Load ONNX Model
+// System Logger Console Helper
+function logToConsole(message, type = 'info') {
+    const consoleEl = document.getElementById("log-console");
+    if (!consoleEl) return;
+    const div = document.createElement("div");
+    div.className = `log-entry ${type}`;
+    const timestamp = new Date().toLocaleTimeString();
+    div.textContent = `[${timestamp}] ${message}`;
+    consoleEl.appendChild(div);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+    console.log(`[${type.toUpperCase()}] ${message}`);
+}
+
+// Load ONNX Model with WebGPU + WASM Fallback Logic
 async function loadModel(modelName) {
     showLoading(`Loading ${modelName}...`);
+    logToConsole(`Initializing model loading for ${modelName}...`, "info");
+    
+    // Attempt 1: WebGPU
     try {
-        // Setup WebGPU execution provider for high-performance GPU acceleration, falling back to multi-threaded WASM
+        if (!navigator.gpu) {
+            throw new Error("WebGPU is not supported by this browser/device.");
+        }
+        logToConsole("Attempting to load model on WebGPU execution provider...", "info");
+        const options = { executionProviders: ['webgpu'] };
+        session = await ort.InferenceSession.create(modelName, options);
+        logToConsole("Model successfully loaded on WebGPU GPU acceleration!", "info");
+        hideLoading();
+        return;
+    } catch (gpuErr) {
+        logToConsole(`WebGPU initialization failed: ${gpuErr.message}`, "warn");
+    }
+
+    // Attempt 2: Fallback to WASM
+    try {
+        logToConsole("Falling back to multithreaded WebAssembly CPU execution...", "info");
+        const threads = Math.min(4, navigator.hardwareConcurrency || 4);
+        logToConsole(`Configuring WASM thread pool size: ${threads}`, "info");
         const options = { 
-            executionProviders: ['webgpu', 'wasm'],
+            executionProviders: ['wasm'],
             wasm: {
-                numThreads: Math.min(4, navigator.hardwareConcurrency || 4)
+                numThreads: threads
             }
         };
         session = await ort.InferenceSession.create(modelName, options);
+        logToConsole("Model successfully loaded on WebAssembly (CPU). Note: Frame rate will be lower.", "warn");
         hideLoading();
-    } catch (err) {
-        console.error("Failed to load model:", err);
-        showLoading(`Error loading model: ${err.message}. Ensure the file exists in docs/`);
+    } catch (wasmErr) {
+        logToConsole(`WebAssembly fallback failed: ${wasmErr.message}`, "error");
+        showLoading(`Error loading model: ${wasmErr.message}. Ensure the file exists in docs/`);
     }
 }
 
@@ -363,4 +397,11 @@ function hideLoading() {
 // Initial default check
 window.addEventListener("DOMContentLoaded", () => {
     hideLoading();
+    logToConsole("System Initialized.", "info");
+    if (navigator.gpu) {
+        logToConsole("Browser WebGPU API detected.", "info");
+    } else {
+        logToConsole("Browser WebGPU API not detected (WebGPU is disabled or unsupported).", "warn");
+        logToConsole("Tip: In Chrome/Edge, make sure WebGPU is enabled at chrome://flags/#enable-unsafe-webgpu or that your graphics drivers are up to date.", "info");
+    }
 });
