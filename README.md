@@ -110,6 +110,29 @@ Interactive Controls:
 
 ---
 
+## Web Application Deployment
+
+A client-side browser version of this fruit detection application is hosted live on **GitHub Pages**:
+
+*   **Live App URL:** [https://tgr-wjya.github.io/Fruits-detection/](https://tgr-wjya.github.io/Fruits-detection/)
+*   **Static Assets:** Located inside the [docs/](file:///home/tgrwjya/Documents/Uni/Semester%206/AI_ML/CV/Project_Work/Fruits-detection/docs) directory of the repository.
+
+### Client-Side Performance Note (GPU vs. CPU Fallback)
+Because deep learning models run directly in the client's browser, frame rates are highly dependent on security settings and system configurations:
+*   **WebGPU (GPU-accelerated):** On default installations of Google Chrome (v113+), Microsoft Edge, or Apple Safari (v18+) on Windows, macOS, iOS, or Android, the page will initialize using the GPU, achieving high-speed inference.
+*   **WebAssembly (CPU Fallback):** On privacy-focused browsers (such as Brave with Shields/Fingerprinting Protection active) or Linux environments without enabled experimental flags, the browser blocks access to the GPU adapter. The application automatically falls back to multithreaded CPU WebAssembly (WASM), resulting in significantly lower frame rates (~1-2 FPS).
+
+### Recommended Testing: Local Python Script
+For full native performance (e.g., ~45-60 FPS using GPU CUDA acceleration), we recommend testing the model locally using our dedicated Python OpenCV script:
+1.  **Clone the repository locally.**
+2.  **Execute the real-time webcam command:**
+    ```bash
+    python realtime_fruit_detection.py --model yolo26s.pt
+    ```
+This bypasses browser virtualization overhead entirely to showcase the actual throughput of the custom fine-tuned weights on hardware.
+
+---
+
 ## Credits
 
 This project was developed as a **Tugas Besar** for the Computer Vision class (1A4154CA) at Mercu Buana University.
