@@ -189,18 +189,25 @@ def run_detection(args):
     """
     from ultralytics import YOLO
 
+    # Tentukan project name secara dinamis berdasarkan model
+    model_stem = Path(args.model).stem
+    if model_stem.startswith("yolov8"):
+        project_name = "fruit_detection_runs"
+    else:
+        project_name = f"fruit_detection_runs_{model_stem}"
+
     # ── Load Model ──────────────────────────────────────────────
     weights_path = args.weights
     if weights_path is None:
-        # Coba cari model dari hasil training
-        weights_path = str(PROJECT_DIR / "fruit_detection_runs" / "train" / "weights" / "best.pt")
+        # Coba cari model dari hasil training berdasarkan model target
+        weights_path = str(PROJECT_DIR / project_name / "train" / "weights" / "best.pt")
 
     if not os.path.exists(weights_path):
         print(f"Model tidak ditemukan: {weights_path}")
         print("   Opsi:")
-        print("   1. Jalankan training dulu: python train_fruit_detection.py --mode train")
-        print("   2. Tentukan path model: --weights path/to/best.pt")
-        print(f"   3. Gunakan pretrained: --weights {PRETRAINED_MODEL}")
+        print(f"   1. Jalankan training dulu: python train_fruit_detection.py --mode train --model {args.model}")
+        print("   2. Tentukan path model spesifik: --weights path/to/best.pt")
+        print(f"   3. Gunakan pretrained model langsung: --weights {args.model}")
         sys.exit(1)
 
     print(f"Loading model: {weights_path}")
@@ -376,6 +383,8 @@ Contoh penggunaan:
 
     parser.add_argument("--source", type=str, default=None,
                         help="Video source: 0 untuk webcam (default), atau path ke video")
+    parser.add_argument("--model", type=str, default="yolo26s.pt",
+                        help="Model weights base name to resolve run dir (default: yolo26s.pt)")
     parser.add_argument("--weights", type=str, default=None,
                         help="Path ke model weights (.pt)")
     parser.add_argument("--imgsz", type=int, default=640,

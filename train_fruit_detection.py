@@ -50,7 +50,7 @@ DEFAULT_CACHE = False      # Do NOT cache images in RAM by default to avoid syst
 
 def train(args):
     """
-    Fine-tune YOLOv8s pada dataset Fruits-detection.
+    Fine-tune YOLO model pada dataset Fruits-detection.
     Mendukung auto-resume dan graceful training termination per chunk.
     """
     from ultralytics import YOLO
@@ -58,11 +58,13 @@ def train(args):
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
+    pretrained_model = PROJECT_DIR / args.model
+
     print("=" * 60)
-    print("  TRAINING: Real-Time Fruit Detection (YOLOv8s)")
+    print(f"  TRAINING: Real-Time Fruit Detection ({Path(args.model).stem})")
     print("=" * 60)
     print(f"  Dataset     : {DATA_YAML}")
-    print(f"  Pretrained  : {PRETRAINED_MODEL}")
+    print(f"  Pretrained  : {pretrained_model}")
     print(f"  Total Epochs: {args.epochs}")
     if args.epochs_per_run:
         print(f"  Chunk Size  : {args.epochs_per_run} epochs per run")
@@ -75,14 +77,14 @@ def train(args):
     print("=" * 60)
 
     # Cek apakah checkpoint sebelumnya ada untuk di-resume
-    last_pt = PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "last.pt"
+    last_pt = PROJECT_DIR / args.project_name / "train" / "weights" / "last.pt"
     if last_pt.exists():
         print(f"Checkpoint ditemukan di {last_pt}. Me-resume training...")
         model = YOLO(str(last_pt))
         resume_mode = True
-        
+
         # Daftarkan callback untuk meng-override epochs target pada saat resume
-        # karena YOLOv8 secara default mengabaikan parameter 'epochs' baru saat resume=True
+        # karena YOLO secara default mengabaikan parameter 'epochs' baru saat resume=True
         def override_resume_epochs(trainer):
             if hasattr(trainer, 'args'):
                 trainer.epochs = args.epochs
@@ -91,8 +93,8 @@ def train(args):
 
         model.add_callback("on_pretrain_routine_start", override_resume_epochs)
     else:
-        print(f"Tidak ada checkpoint. Memulai training baru menggunakan {PRETRAINED_MODEL}...")
-        model = YOLO(str(PRETRAINED_MODEL))
+        print(f"Tidak ada checkpoint. Memulai training baru menggunakan {pretrained_model}...")
+        model = YOLO(str(pretrained_model))
         resume_mode = False
 
     # Jika diset epochs-per-run, daftarkan callback untuk stop training di akhir limit chunk
@@ -112,19 +114,19 @@ def train(args):
                     original_final_eval = trainer.final_eval
                     def custom_final_eval(*eval_args, **eval_kwargs):
                         import shutil
-                        last_pt = Path(trainer.last)
-                        backup_pt = last_pt.with_suffix('.pt.bak')
-                        if last_pt.exists():
-                            shutil.copy(str(last_pt), str(backup_pt))
+                        last_pt_path = Path(trainer.last)
+                        backup_pt = last_pt_path.with_suffix('.pt.bak')
+                        if last_pt_path.exists():
+                            shutil.copy(str(last_pt_path), str(backup_pt))
                             print(f"Mengamankan checkpoint dengan optimizer state ke {backup_pt}")
-                        
+
                         try:
                             original_final_eval(*eval_args, **eval_kwargs)
                         finally:
                             if backup_pt.exists():
-                                shutil.move(str(backup_pt), str(last_pt))
-                                print(f"Mengembalikan checkpoint dengan optimizer state ke {last_pt}")
-                    
+                                shutil.move(str(backup_pt), str(last_pt_path))
+                                print(f"Mengembalikan checkpoint dengan optimizer state ke {last_pt_path}")
+
                     trainer.final_eval = custom_final_eval
 
         model.add_callback("on_fit_epoch_end", stop_at_epoch_limit)
@@ -138,7 +140,7 @@ def train(args):
         device=args.device,
         workers=args.workers,
         cache=args.cache,
-        project=str(PROJECT_DIR / DEFAULT_PROJECT_NAME),
+        project=str(PROJECT_DIR / args.project_name),
         name="train",
         exist_ok=True,
         resume=resume_mode,
@@ -168,7 +170,7 @@ def train(args):
         plots=True,
     )
 
-    best_model_path = PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt"
+    best_model_path = PROJECT_DIR / args.project_name / "train" / "weights" / "best.pt"
     print("\n" + "=" * 60)
     print("  SUBPROSES CHUNK SELESAI!")
     print("=" * 60)
@@ -186,7 +188,7 @@ def evaluate(args):
     # Cari model terbaik
     best_model = args.weights
     if best_model is None:
-        best_model = str(PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt")
+        best_model = str(PROJECT_DIR / args.project_name / "train" / "weights" / "best.pt")
 
     if not os.path.exists(best_model):
         print(f"Model tidak ditemukan: {best_model}")
@@ -211,7 +213,7 @@ def evaluate(args):
         batch=args.batch,
         device=args.device,
         plots=True,
-        project=str(PROJECT_DIR / DEFAULT_PROJECT_NAME),
+        project=str(PROJECT_DIR / args.project_name),
         name="val_eval",
         exist_ok=True,
     )
@@ -225,7 +227,7 @@ def evaluate(args):
         batch=args.batch,
         device=args.device,
         plots=True,
-        project=str(PROJECT_DIR / DEFAULT_PROJECT_NAME),
+        project=str(PROJECT_DIR / args.project_name),
         name="test_eval",
         exist_ok=True,
     )
@@ -247,7 +249,7 @@ def predict(args):
 
     best_model = args.weights
     if best_model is None:
-        best_model = str(PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt")
+        best_model = str(PROJECT_DIR / args.project_name / "train" / "weights" / "best.pt")
 
     if not os.path.exists(best_model):
         print(f"Model tidak ditemukan: {best_model}")
@@ -269,12 +271,12 @@ def predict(args):
         conf=args.conf,
         device=args.device,
         save=True,
-        project=str(PROJECT_DIR / DEFAULT_PROJECT_NAME),
+        project=str(PROJECT_DIR / args.project_name),
         name="predict",
         exist_ok=True,
     )
 
-    print(f"\nPrediksi selesai! Hasil disimpan di folder {DEFAULT_PROJECT_NAME}/predict/")
+    print(f"\nPrediksi selesai! Hasil disimpan di folder {args.project_name}/predict/")
 
 
 def export_model(args):
@@ -285,7 +287,7 @@ def export_model(args):
 
     best_model = args.weights
     if best_model is None:
-        best_model = str(PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "best.pt")
+        best_model = str(PROJECT_DIR / args.project_name / "train" / "weights" / "best.pt")
 
     if not os.path.exists(best_model):
         print(f"Model tidak ditemukan: {best_model}")
@@ -321,6 +323,8 @@ Contoh penggunaan:
     parser.add_argument("--mode", type=str, required=True,
                         choices=["train", "eval", "predict", "export"],
                         help="Mode: train | eval | predict | export")
+    parser.add_argument("--model", type=str, default="yolo26s.pt",
+                        help="Model weights file to load (default: yolo26s.pt)")
     parser.add_argument("--epochs", type=int, default=DEFAULT_EPOCHS,
                         help=f"Jumlah epoch training (default: {DEFAULT_EPOCHS})")
     parser.add_argument("--batch", type=int, default=DEFAULT_BATCH_SIZE,
@@ -354,25 +358,33 @@ Contoh penggunaan:
     elif args.cache.lower() == 'false':
         args.cache = False
 
+    # Tentukan project name secara dinamis berdasarkan model
+    model_stem = Path(args.model).stem
+    if model_stem.startswith("yolov8"):
+        args.project_name = "fruit_detection_runs"
+    else:
+        args.project_name = f"fruit_detection_runs_{model_stem}"
+
     if args.mode == "train":
         # Jika user meminta chunk training dan ini adalah proses utama (bukan subprocess chunk)
         if args.epochs_per_run is not None and args.epochs_per_run > 0 and not args.is_chunk:
             import subprocess
             import time
-            
+
             total_epochs = args.epochs
             epochs_per_run = args.epochs_per_run
             cooldown = args.cooldown
-            last_pt = PROJECT_DIR / DEFAULT_PROJECT_NAME / "train" / "weights" / "last.pt"
-            
+            last_pt = PROJECT_DIR / args.project_name / "train" / "weights" / "last.pt"
+
             print("=" * 60)
             print("  AUTO-CHUNK RUNNER DI-AKTIFKAN")
             print("=" * 60)
             print(f"  Target Epochs  : {total_epochs}")
             print(f"  Epochs Per Run : {epochs_per_run}")
             print(f"  Cooldown Pause : {cooldown} seconds")
+            print(f"  Project Dir    : {args.project_name}")
             print("=" * 60)
-            
+
             while True:
                 # Cek progress epoch saat ini dari checkpoint last.pt
                 completed_epochs = 0
@@ -381,34 +393,37 @@ Contoh penggunaan:
                         ckpt = torch.load(str(last_pt), map_location="cpu", weights_only=False)
                         if ckpt and "train_results" in ckpt and "epoch" in ckpt["train_results"]:
                             completed_epochs = len(ckpt["train_results"]["epoch"])
+                        elif ckpt and "epoch" in ckpt:
+                            completed_epochs = int(ckpt["epoch"]) + 1
                     except Exception as e:
                         print(f"Gagal membaca checkpoint progress: {e}. Melanjutkan run...")
-                
+
                 print(f"\nProgress Training: {completed_epochs}/{total_epochs} epoch selesai.")
-                
+
                 if completed_epochs >= total_epochs:
                     print("Semua epoch telah berhasil diselesaikan!")
                     break
-                
+
                 # Hitung target epoch run berikutnya
                 next_target = min(completed_epochs + epochs_per_run, total_epochs)
                 log_msg = f"Progress: {completed_epochs}/{total_epochs} epochs. Memulai chunk baru: Epoch {completed_epochs + 1} s/d {next_target}"
                 print(log_msg)
-                
+
                 # Catat progress ke log file
-                log_file = PROJECT_DIR / DEFAULT_PROJECT_NAME / "incremental_training.log"
+                log_file = PROJECT_DIR / args.project_name / "incremental_training.log"
                 log_file.parent.mkdir(parents=True, exist_ok=True)
                 try:
                     with open(log_file, "a") as f:
                         f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {log_msg}\n")
                 except Exception as e:
                     print(f"Gagal menulis ke log file: {e}")
-                
-                # Jalankan subprocess script ini sendiri dengan flag --is-chunk
+
+                # Jalankan subprocess script ini sendiri dengan flag --is-chunk dan parameter model
                 cmd = [
                     sys.executable,
                     str(Path(__file__).resolve()),
                     "--mode", "train",
+                    "--model", args.model,
                     "--epochs", str(total_epochs),
                     "--epochs-per-run", str(epochs_per_run),
                     "--cooldown", str(cooldown),
@@ -419,12 +434,12 @@ Contoh penggunaan:
                     "--workers", str(args.workers),
                     "--cache", str(args.cache),
                 ]
-                
+
                 result = subprocess.run(cmd)
                 if result.returncode != 0:
                     print(f"Subproses training terhenti dengan exit code {result.returncode}. Membatalkan loop.")
                     sys.exit(result.returncode)
-                
+
                 # Check progress baru
                 new_completed = 0
                 if last_pt.exists():
@@ -432,21 +447,23 @@ Contoh penggunaan:
                         ckpt = torch.load(str(last_pt), map_location="cpu", weights_only=False)
                         if ckpt and "train_results" in ckpt and "epoch" in ckpt["train_results"]:
                             new_completed = len(ckpt["train_results"]["epoch"])
+                        elif ckpt and "epoch" in ckpt:
+                            new_completed = int(ckpt["epoch"]) + 1
                     except Exception:
                         pass
-                
+
                 # Jika progress tidak bertambah sama sekali, cegah infinite loop
                 if new_completed <= completed_epochs:
                     print("Peringatan: Tidak ada kemajuan epoch terdeteksi pada run ini. Menghentikan untuk mencegah loop tanpa akhir.")
                     break
-                
+
                 if new_completed >= total_epochs:
                     print("\nSemua epoch telah berhasil diselesaikan!")
                     break
-                    
+
                 print(f"\nMemasuki masa pendinginan hardware selama {cooldown} detik...")
                 time.sleep(cooldown)
-                
+
             print("=" * 60)
             print("  AUTO-CHUNK RUNNER SELESAI")
             print("=" * 60)
