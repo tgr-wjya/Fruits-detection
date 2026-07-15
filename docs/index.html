@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Fruit Detection (YOLO ONNX)</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- ONNX Runtime Web CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h1>Real-Time Fruit Detection</h1>
+            <p>YOLOv8s / YOLO26s Browser Inference</p>
+        </header>
+
+        <main class="main-layout">
+            <div class="video-section">
+                <div class="video-wrapper">
+                    <video id="webcam" autoplay playsinline muted></video>
+                    <canvas id="detection-canvas"></canvas>
+                    <div id="loading-overlay" class="overlay">
+                        <div class="spinner"></div>
+                        <p id="loading-text">Loading Model...</p>
+                    </div>
+                </div>
+                <div class="controls-panel">
+                    <div class="control-group">
+                        <label for="model-select">Select Model</label>
+                        <select id="model-select">
+                            <option value="yolo26s.onnx">YOLO26s (Default)</option>
+                            <option value="yolov8s.onnx">YOLOv8s</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="conf-threshold">Confidence: <span id="conf-val">0.40</span></label>
+                        <input type="range" id="conf-threshold" min="0.1" max="0.9" step="0.05" value="0.40">
+                    </div>
+                    <div class="control-group">
+                        <label for="iou-threshold">IoU Threshold: <span id="iou-val">0.45</span></label>
+                        <input type="range" id="iou-threshold" min="0.1" max="0.9" step="0.05" value="0.45">
+                    </div>
+                    <div class="button-group">
+                        <button id="start-btn" class="btn primary">Start Camera</button>
+                        <button id="pause-btn" class="btn secondary" disabled>Pause</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-section">
+                <div class="card stat-card">
+                    <h3>Inference Performance</h3>
+                    <div class="stat-row">
+                        <span>Inference Time:</span>
+                        <span id="inference-time" class="val">-- ms</span>
+                    </div>
+                    <div class="stat-row">
+                        <span>FPS:</span>
+                        <span id="fps-counter" class="val">--</span>
+                    </div>
+                </div>
+
+                <div class="card classes-card">
+                    <h3>Detection Counts</h3>
+                    <div id="class-counts-container">
+                        <!-- Populated dynamically -->
+                        <div class="class-row"><span>Apple:</span> <span id="count-Apple">0</span></div>
+                        <div class="class-row"><span>Banana:</span> <span id="count-Banana">0</span></div>
+                        <div class="class-row"><span>Grape:</span> <span id="count-Grape">0</span></div>
+                        <div class="class-row"><span>Orange:</span> <span id="count-Orange">0</span></div>
+                        <div class="class-row"><span>Pineapple:</span> <span id="count-Pineapple">0</span></div>
+                        <div class="class-row"><span>Watermelon:</span> <span id="count-Watermelon">0</span></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
