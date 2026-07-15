@@ -68,8 +68,13 @@ pauseBtn.addEventListener("click", () => {
 async function loadModel(modelName) {
     showLoading(`Loading ${modelName}...`);
     try {
-        // Setup WebGL execution provider for GPU acceleration if available
-        const options = { executionProviders: ['webgl', 'wasm'] };
+        // Setup WebGPU execution provider for high-performance GPU acceleration, falling back to multi-threaded WASM
+        const options = { 
+            executionProviders: ['webgpu', 'wasm'],
+            wasm: {
+                numThreads: Math.min(4, navigator.hardwareConcurrency || 4)
+            }
+        };
         session = await ort.InferenceSession.create(modelName, options);
         hideLoading();
     } catch (err) {
